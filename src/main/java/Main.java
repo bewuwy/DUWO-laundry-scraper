@@ -2,18 +2,17 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.UncheckedIOException;
+import java.io.*;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.util.Arrays;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Optional;
 import java.util.Scanner;
+import java.util.concurrent.TimeUnit;
 
 public class Main {
 
@@ -22,7 +21,14 @@ public class Main {
 
     public static void main(String[] args) {
 
-        System.out.println(Arrays.toString(args));
+        HashMap<String, Integer> targetAvailability = getTargetAvailability(args);
+
+        if (targetAvailability.isEmpty()) {
+           System.out.println("No targets set! You can use CLI arguments to set them: \"wm 3\" for 3 washing machines or \"d\" for 1 dryer (you can also specify multiple targets)\n");
+        }
+        else {
+            System.out.println("Waiting for targets: " + targetAvailability);
+        }
 
         try {
             readConfig(new Scanner(new File("config.txt")));
@@ -31,14 +37,83 @@ public class Main {
             throw new RuntimeException(e);
         }
 
+        refreshPHPSession();
+
+        boolean allTargetsReached;
+        int iterationCounter = 0;
+
+        HashMap<String, Integer> currentAvailability;
+        do {
+            iterationCounter ++;
+            if (iterationCounter % 10 == 0)
+                refreshPHPSession();  // refresh PHP session cookie every 10 iterations (minutes)
+
+            System.out.println();
+
+            currentAvailability = getAvailability();
+            allTargetsReached = true;
+
+            for (String m: targetAvailability.keySet()) {
+                int target = targetAvailability.get(m);
+                assert currentAvailability != null;
+                int current = currentAvailability.get(m);
+
+                if (current < target) {
+                    allTargetsReached = false;
+                }
+            }
+
+            if (allTargetsReached) {
+                if (!targetAvailability.isEmpty())
+                    System.out.println("Reached your target!");
+                return;
+            }
+
+            try {
+                TimeUnit.MINUTES.sleep(1);
+            } catch (InterruptedException _) {
+                return;
+            }
+        } while (true);
+    }
+
+    private static void refreshPHPSession() {
         phpSessionID = getPHPSession();
 
         String loginBody = String.format("UserInput=%s&PwdInput=%s\n", config.get("User"), config.get("Password"));
         loginMultiposs(loginBody);
 
         initMultiposs(config.get("MultipossID"), config.get("User"));
+    }
 
-        HashMap<String, Integer> currentAvailability = getAvailability();
+    private static HashMap<String, Integer> getTargetAvailability(String[] args) {
+        HashMap<String, Integer> targetAvailability = new HashMap<>();
+        String currentMachine = "";
+        int currentAmount = 1;
+
+        for (String arg : args) {
+            try {
+                currentAmount = Integer.parseInt(arg);
+            } catch (NumberFormatException e) {
+
+                if (!currentMachine.isEmpty()) {
+                    targetAvailability.put(currentMachine, currentAmount);
+                }
+
+                currentMachine = switch (arg) {
+                    case "wm" -> "Washing Machine";
+                    case "d" -> "Dryer";
+                    default -> arg;
+                };
+                currentAmount = 1;
+            }
+        }
+
+        if (!currentMachine.isEmpty()) {
+            targetAvailability.put(currentMachine, currentAmount);
+        }
+
+        return targetAvailability;
     }
 
     public static HashMap<String, Integer> getAvailability() {
@@ -61,6 +136,9 @@ public class Main {
 
         Element availabilityTable = doc.selectFirst("table.ColorTable > tbody");
         assert availabilityTable != null;
+
+        SimpleDateFormat sdf = new SimpleDateFormat("H:m");
+        System.out.println(sdf.format(new Date()));
 
         for (int i=1; i<availabilityTable.childrenSize(); i++) {
             Element el = availabilityTable.child(i);
@@ -122,7 +200,7 @@ public class Main {
             return;
         }
 
-        System.out.println("Logged in to multiposs");
+        System.out.println("Logged in to multiposs successfully");
     }
 
     private static void readConfig(Scanner sc) {
