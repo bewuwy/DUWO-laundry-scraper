@@ -24,7 +24,7 @@ public class Main {
         HashMap<String, Integer> targetAvailability = getTargetAvailability(args);
 
         if (targetAvailability.isEmpty()) {
-           System.out.println("No targets set! You can use CLI arguments to set them: \"wm 3\" for 3 washing machines or \"d\" for 1 dryer (you can also specify multiple targets)\n");
+           System.out.println("No targets set! You can use CLI arguments to set them: \"wm 3\" for 3 washing machines or \"d\" for 1 dryer (you can also specify multiple targets)");
         }
         else {
             System.out.println("Waiting for targets: " + targetAvailability);
@@ -51,12 +51,23 @@ public class Main {
             System.out.println();
 
             currentAvailability = getAvailability();
+
+            if (currentAvailability.isEmpty()) {
+                couldNotConnect();
+                return;
+            }
+
             allTargetsReached = true;
 
             for (String m: targetAvailability.keySet()) {
                 int target = targetAvailability.get(m);
-                assert currentAvailability != null;
-                int current = currentAvailability.get(m);
+                int current;
+                try {
+                    current = currentAvailability.get(m);
+                } catch (RuntimeException e) {
+                    System.out.println("\nERROR: The target \"" + m + "\" does not exist in your building");
+                    return;
+                }
 
                 if (current < target) {
                     allTargetsReached = false;
@@ -80,10 +91,11 @@ public class Main {
     private static void refreshPHPSession() {
         phpSessionID = getPHPSession();
 
-        String loginBody = String.format("UserInput=%s&PwdInput=%s\n", config.get("User"), config.get("Password"));
+        // multiposs availability page works even with incorrect password (only email needs to be correct)
+        String loginBody = String.format("UserInput=%s&PwdInput=%s\n", config.get("User"), "INCORRECT_PASS");
         loginMultiposs(loginBody);
 
-        initMultiposs(config.get("MultipossID"), config.get("User"));
+        initMultiposs(config.get("User"));
     }
 
     private static HashMap<String, Integer> getTargetAvailability(String[] args) {
@@ -128,14 +140,15 @@ public class Main {
         try {
             response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
         } catch (IOException | InterruptedException e) {
-            couldNotConnect();
-            return null;
+            return availability;
         }
 
         Document doc = Jsoup.parse(response.body());
 
         Element availabilityTable = doc.selectFirst("table.ColorTable > tbody");
-        assert availabilityTable != null;
+        if (availabilityTable == null) {
+            return availability;
+        }
 
         SimpleDateFormat sdf = new SimpleDateFormat("H:m");
         System.out.println(sdf.format(new Date()));
@@ -158,9 +171,10 @@ public class Main {
         return availability;
     }
 
-    private static void initMultiposs(String multipossID, String username) {
+    private static void initMultiposs(String username) {
 
-        String reqUrl = String.format("https://duwo.multiposs.nl/StartSite.php?ID=%s&UserID=%s", multipossID, username);
+        // the multiposs id does not matter, as the building is determined by your account
+        String reqUrl = String.format("https://duwo.multiposs.nl/StartSite.php?ID=%s&UserID=%s", "SOME_RANDOM_ID", username);
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(reqUrl))
@@ -197,10 +211,7 @@ public class Main {
         if (response.statusCode() != 200) {
             couldNotConnect();
             System.out.println("Could not login to multiposs");
-            return;
         }
-
-        System.out.println("Logged in to multiposs successfully");
     }
 
     private static void readConfig(Scanner sc) {
@@ -239,6 +250,6 @@ public class Main {
     }
 
     private static void couldNotConnect() {
-        System.out.println("Couldn't connect to multiposs");
+        System.out.println("ERROR: Couldn't connect to multiposs");
     }
 }
