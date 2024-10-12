@@ -1,0 +1,9 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="DUWO-laundry-scraper:jar">
+    <output-path>$PROJECT_DIR$/out/artifacts/DUWO_laundry_scraper_jar</output-path>
+    <root id="archive" name="DUWO-laundry-scraper.jar">
+      <element id="module-output" name="DUWO-laundry-scraper" />
+      <element id="extracted-dir" path="$MAVEN_REPOSITORY$/org/jsoup/jsoup/1.18.1/jsoup-1.18.1.jar" path-in-jar="/" />
+    </root>
+  </artifact>
+</component>
