@@ -19,6 +19,8 @@ public class Main {
     static String phpSessionID;
     static HashMap<String, String> config;
 
+    static Notifier notifier;
+
     public static void main(String[] args) {
 
         HashMap<String, Integer> targetAvailability = getTargetAvailability(args);
@@ -37,6 +39,15 @@ public class Main {
             throw new RuntimeException(e);
         }
 
+        if (!targetAvailability.isEmpty()) {
+            try {
+                notifier = new Notifier(config.get("tgBotToken"), Integer.parseInt(config.get("tgChatID")));
+                notifier.sendTelegramMessage("Waiting for laundry: " + targetAvailability);
+            } catch (NumberFormatException _) {
+                System.out.println("No Telegram bot set up. Configure it in the config.txt file.");
+            }
+        }
+
         refreshPHPSession();
 
         boolean allTargetsReached;
@@ -53,7 +64,7 @@ public class Main {
             currentAvailability = getAvailability();
 
             if (currentAvailability.isEmpty()) {
-                couldNotConnect();
+                couldNotConnect("No current availability loaded");
                 return;
             }
 
@@ -75,8 +86,12 @@ public class Main {
             }
 
             if (allTargetsReached) {
-                if (!targetAvailability.isEmpty())
-                    System.out.println("Reached your target!");
+                if (!targetAvailability.isEmpty()) {
+                    String msg = "Reached your target of: " + targetAvailability + "!";
+                    System.out.println(msg);
+                    if (notifier != null)
+                        notifier.sendTelegramMessage(msg);
+                }
                 return;
             }
 
@@ -92,10 +107,10 @@ public class Main {
         phpSessionID = getPHPSession();
 
         // multiposs availability page works even with incorrect password (only email needs to be correct)
-        String loginBody = String.format("UserInput=%s&PwdInput=%s\n", config.get("User"), "INCORRECT_PASS");
+        String loginBody = String.format("UserInput=%s&PwdInput=%s\n", config.get("user"), "INCORRECT_PASS");
         loginMultiposs(loginBody);
 
-        initMultiposs(config.get("User"));
+        initMultiposs(config.get("user"));
     }
 
     private static HashMap<String, Integer> getTargetAvailability(String[] args) {
@@ -150,7 +165,7 @@ public class Main {
             return availability;
         }
 
-        SimpleDateFormat sdf = new SimpleDateFormat("H:m");
+        SimpleDateFormat sdf = new SimpleDateFormat("H:mm");
         System.out.println(sdf.format(new Date()));
 
         for (int i=1; i<availabilityTable.childrenSize(); i++) {
@@ -184,13 +199,13 @@ public class Main {
         HttpResponse<String> response;
         try {
             response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
-        } catch (IOException | InterruptedException _) {
-            couldNotConnect();
+        } catch (IOException | InterruptedException e) {
+            couldNotConnect("initMultiposs: " + e);
             return;
         }
 
         if (response.statusCode() != 302) {
-            couldNotConnect();
+            couldNotConnect("initMultiposs: wrong response code " + response.statusCode());
         }
     }
 
@@ -203,13 +218,13 @@ public class Main {
         HttpResponse<String> response;
         try {
             response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
-        } catch (IOException | InterruptedException _) {
-            couldNotConnect();
+        } catch (IOException | InterruptedException e) {
+            couldNotConnect("loginMultiposs: " + e);
             return;
         }
 
         if (response.statusCode() != 200) {
-            couldNotConnect();
+            couldNotConnect("loginMultiposs: wrong response code " + response.statusCode());
             System.out.println("Could not login to multiposs");
         }
     }
@@ -234,22 +249,25 @@ public class Main {
         HttpResponse<String> response;
         try {
             response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
-        } catch (IOException | InterruptedException | UncheckedIOException _) {
-            couldNotConnect();
+        } catch (IOException | InterruptedException | UncheckedIOException e) {
+            couldNotConnect("getPHPSession: " + e);
             return null;
         }
 
         Optional<String> sessionCookieString = response.headers().firstValue("set-cookie");
 
         if (sessionCookieString.isEmpty()) {
-            couldNotConnect();
+            couldNotConnect("getPHPSession: did not get PHP session id cookie");
             return null;
         }
 
         return sessionCookieString.get().split("=")[1].split(";")[0];
     }
 
-    private static void couldNotConnect() {
-        System.out.println("ERROR: Couldn't connect to multiposs");
+    private static void couldNotConnect(String e) {
+        String msg = String.format("ERROR: Couldn't connect to multiposs (%s)%n", e);
+        System.out.printf(msg);
+        if (notifier != null)
+            notifier.sendTelegramMessage(msg);
     }
 }

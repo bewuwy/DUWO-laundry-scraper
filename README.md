@@ -1,17 +1,19 @@
 # DUWO laundry bot
 
-Simple Java program to check availability of washing machines and dryers in DUWO buildings.
+Simple Java program to check availability of washing machines and dryers in DUWO buildings (and notify you with a Telegram bot).
 
 ## Usage
 
 1. Create `config.txt` with:
 ```
 user=YOUR_MULTIPOSS@EMAIL.COM
+tgBotToken=YOUR_TG_BOT_TOKEN
+tgChatID=YOUR_TG_CHAT_ID
 ```
 
 2. Run `java -jar DUWO_laundry.jar`
 
-3. You can also also use CLI arguments:
+3. You can also use CLI arguments:
    - `wm` for washing machine
    - `d` for dryer
    - add numbers after the machine name to quantify the target
