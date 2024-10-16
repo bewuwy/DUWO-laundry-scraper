@@ -6,7 +6,7 @@ import java.net.http.HttpResponse;
 
 public class Notifier {
 
-    static String prefix = "DL: ";
+    static String prefix = "Laundrobot: ";
 
     String botToken;
     int chatID;

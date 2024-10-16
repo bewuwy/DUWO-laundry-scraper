@@ -64,7 +64,7 @@ public class Main {
             currentAvailability = getAvailability();
 
             if (currentAvailability.isEmpty()) {
-                couldNotConnect("No current availability loaded");
+                couldNotConnect("No current availability loaded", "E-mail address in config may be wrong");
                 return;
             }
 
@@ -166,11 +166,16 @@ public class Main {
         }
 
         SimpleDateFormat sdf = new SimpleDateFormat("H:mm");
-        System.out.println(sdf.format(new Date()));
+        System.out.print(sdf.format(new Date()) + " ");
 
         for (int i=1; i<availabilityTable.childrenSize(); i++) {
             Element el = availabilityTable.child(i);
+
             String machineType = el.child(1).text();
+            String location = el.child(0).text();
+            if (i == 1) {
+                System.out.println(location);
+            }
             machineType = machineType.replace("Mach.", "Machine");
             String status = el.child(2).text();
 
@@ -225,7 +230,6 @@ public class Main {
 
         if (response.statusCode() != 200) {
             couldNotConnect("loginMultiposs: wrong response code " + response.statusCode());
-            System.out.println("Could not login to multiposs");
         }
     }
 
@@ -266,6 +270,14 @@ public class Main {
 
     private static void couldNotConnect(String e) {
         String msg = String.format("ERROR: Couldn't connect to multiposs (%s)%n", e);
+        System.out.printf(msg);
+        if (notifier != null)
+            notifier.sendTelegramMessage(msg);
+    }
+
+    @SuppressWarnings("SameParameterValue")
+    private static void couldNotConnect(String e, String d) {
+        String msg = String.format("ERROR: Couldn't connect to multiposs (%s) - %s %n", e, d);
         System.out.printf(msg);
         if (notifier != null)
             notifier.sendTelegramMessage(msg);
